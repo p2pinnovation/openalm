@@ -8,7 +8,9 @@ import {I18nService} from "core-app/modules/common/i18n/i18n.service";
 })
 export class TypeFormAttributeGroupComponent {
   @Input() public group:TypeGroup;
+
   @Output() public deleteGroup = new EventEmitter<void>();
+  @Output() public removeAttribute = new EventEmitter<TypeFormAttribute>();
 
   text = {
     custom_field: this.I18n.t('js.admin.type_form.custom_field')
@@ -18,13 +20,18 @@ export class TypeFormAttributeGroupComponent {
   }
 
   rename(newValue:string) {
-    this.group.name = newValue;
+    this.group = {
+      ...this.group,
+      key: newValue,
+      static_key: false
+    };
   }
 
-  removeAttribute(attribute:TypeFormAttribute) {
+  removeFromGroup(attribute:TypeFormAttribute) {
     this.group = {
       ...this.group,
       attributes: this.group.attributes.filter(a => a !== attribute)
     };
+    this.removeAttribute.emit(attribute);
   }
 }

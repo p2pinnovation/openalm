@@ -1,4 +1,4 @@
-import {Component, ElementRef, OnInit} from '@angular/core';
+import {Component, ElementRef, OnDestroy, OnInit} from '@angular/core';
 import {TypeBannerService} from 'core-app/modules/admin/types/type-banner.service';
 import {I18nService} from 'core-app/modules/common/i18n/i18n.service';
 import {NotificationsService} from 'core-app/modules/common/notifications/notifications.service';
@@ -10,6 +10,9 @@ import {Drake} from 'dragula';
 
 import {randomString} from 'core-app/helpers/random-string';
 import {GonService} from "core-app/modules/common/gon/gon.service";
+import {DynamicBootstrapper} from "core-app/globals/dynamic-bootstrapper";
+import {takeUntil} from "rxjs/operators";
+import {componentDestroyed} from "ng2-rx-componentdestroyed";
 
 export type TypeGroupType = 'attribute'|'query';
 
@@ -20,11 +23,8 @@ export interface TypeFormAttribute {
 }
 
 export interface TypeGroup {
-  id:string|null;
   key:string;
-  originalKey:string;
-  translated_key:string;
-  name:string;
+  static_key:boolean;
   attributes:TypeFormAttribute[];
   query?:any;
   type:TypeGroupType;
@@ -37,7 +37,7 @@ export interface TypeGroup {
     TypeBannerService,
   ]
 })
-export class TypeFormConfigurationComponent implements OnInit {
+export class TypeFormConfigurationComponent implements OnInit, OnDestroy {
 
   public text = {
     drag_to_activate: this.I18n.t('js.admin.type_form.drag_to_activate'),
@@ -78,6 +78,28 @@ export class TypeFormConfigurationComponent implements OnInit {
       return !this.updateHiddenFields();
     });
 
+    // Setup groups
+    this.dragula.createGroup('groups', {
+      moves: (el, source, handle:HTMLElement) => handle.classList.contains('group-handle')
+    });
+
+    // Setup attributes
+    this.dragula.createGroup('attributes', {
+      moves: (el, source, handle:HTMLElement) => handle.classList.contains('attribute-handle')
+    });
+
+    this.dragula.dropModel("attributes")
+      .pipe(
+        takeUntil(componentDestroyed(this))
+      )
+      .subscribe((event) => {
+        console.log(event);
+      });
+
+    // Get attribute id
+    this.groups = JSON.parse(this.element.dataset.activeGroups!);
+    this.inactives = JSON.parse(this.element.dataset.inactiveAttributes!);
+
     // Setup autoscroll
     const that = this;
     this.autoscroll = new DomAutoscrollService(
@@ -96,11 +118,12 @@ export class TypeFormConfigurationComponent implements OnInit {
       });
   }
 
-  public deactivateAttribute($event:any) {
-    jQuery($event.target)
-      .parents('.type-form-conf-attribute')
-      .appendTo('#type-form-conf-inactive-group .attributes');
-    this.updateHiddenFields();
+  ngOnDestroy() {
+    // Nothing to do
+  }
+
+  public deactivateAttribute(attribute:TypeFormAttribute) {
+    this.updateInactives(this.inactives.concat(attribute));
   }
 
   public addGroupAndOpenQuery():void {
@@ -122,79 +145,11 @@ export class TypeFormConfigurationComponent implements OnInit {
     );
   }
 
-  public deleteGroup($event:any) {
-    let group:JQuery = jQuery($event.target).parents('.type-form-conf-group');
-    let attributes:JQuery = jQuery('.attributes', group).children();
-    let inactiveAttributes:JQuery = jQuery('#type-form-conf-inactive-group .attributes');
+  public deleteGroup(group:TypeGroup) {
+    this.updateInactives(this.inactives.concat(group.attributes));
+    this.groups = this.groups.filter(el => el !== group);
 
-    inactiveAttributes.prepend(attributes);
-
-    group.remove();
-    this.updateHiddenFields();
     return group;
-  }
-
-  public updateHiddenFields():boolean {
-    let groups:HTMLElement[] = jQuery('.type-form-conf-group').not('#type-form-conf-group-template').toArray();
-    let seenGroupNames:{ [name:string]:boolean } = {};
-    let newAttrGroups:Array<Array<(string|Array<string>|boolean)>> = [];
-    let inputAttributeGroups:JQuery;
-    let hasError = false;
-
-    // Clean up previous error states
-    this.notificationsService.clear();
-
-    // Extract new grouping from DOM structure, starting
-    // with the active groups.
-    groups.forEach((groupEl:HTMLElement) => {
-      let group:JQuery = jQuery(groupEl);
-      let groupKey:string = group.attr('data-key') as string;
-      let keyIsSymbol:boolean = JSON.parse(group.attr('data-key-is-symbol') as string);
-      let attrKeys:string[] = [];
-
-      jQuery(group).removeClass('-error');
-      if (groupKey == null || groupKey.length === 0) {
-        // Do not save groups without a name.
-        return;
-      }
-
-      if (seenGroupNames[groupKey.toLowerCase()]) {
-        this.notificationsService.addError(
-          I18n.t('js.types.attribute_groups.error_duplicate_group_name', {group: groupKey})
-        );
-        group.addClass('-error');
-        hasError = true;
-        return;
-      }
-
-      seenGroupNames[groupKey.toLowerCase()] = true;
-
-      // For query groups, serialize the changed query, if any
-      if (group.hasClass('type-form-query-group')) {
-        const originator = group.find('.type-form-query');
-        const queryProps = this.extractQuery(originator);
-
-        newAttrGroups.push([groupKey, queryProps]);
-        return;
-      }
-
-
-      // For attribute groups, extract the attributes
-      group.find('.type-form-conf-attribute').each((i, attribute) => {
-        let attr:JQuery = jQuery(attribute);
-        let key:string = attr.attr('data-key') as string;
-        attrKeys.push(key);
-      });
-
-      newAttrGroups.push([groupKey, attrKeys, keyIsSymbol]);
-    });
-
-    // Finally update hidden input fields
-    inputAttributeGroups = jQuery('input#type_attribute_groups').first();
-
-    inputAttributeGroups.val(JSON.stringify(newAttrGroups));
-
-    return hasError;
   }
 
   public extractQuery(originator:JQuery) {
@@ -207,22 +162,20 @@ export class TypeFormConfigurationComponent implements OnInit {
   }
 
   public createGroup(type:TypeGroupType, groupName:string = '') {
-    let draggableGroups:JQuery = jQuery('#draggable-groups');
     let randomId:string = randomString(8);
 
     let group:TypeGroup = {
       type: type,
-      name: groupName,
-      id: null,
       key: randomId,
-      originalKey: randomId
+      static_key: false,
+      attributes: [],
     };
 
     this.groups.unshift(group);
     return group;
   }
 
-  public resetToDefault($event:JQuery.Event):boolean {
+  public resetToDefault($event:Event):boolean {
     this.confirmDialog
       .confirm({
         text: {
@@ -241,4 +194,10 @@ export class TypeFormConfigurationComponent implements OnInit {
     $event.preventDefault();
     return false;
   }
+
+  private updateInactives(newValue:TypeFormAttribute[]) {
+    this.inactives = [...newValue].sort((a, b) => a.translation.localeCompare(b.translation));
+  }
 }
+
+DynamicBootstrapper.register({cls: TypeFormConfigurationComponent, selector: 'admin-type-form-configuration'});
