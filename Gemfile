@@ -48,7 +48,7 @@ gem 'request_store', '~> 1.4.1'
 gem 'warden', '~> 1.2'
 gem 'warden-basic_auth', '~> 0.2.1'
 
-gem 'will_paginate', '~> 3.1.0'
+gem 'will_paginate', '~> 3.1.7'
 
 # Replace once friendly_id release supports rails 6
 gem 'friendly_id', git: 'https://github.com/norman/friendly_id', ref: '67422c04e1bfed4207b2a04826bc67ec0e231ce7'
