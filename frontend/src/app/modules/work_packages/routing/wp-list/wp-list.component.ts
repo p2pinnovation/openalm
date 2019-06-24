@@ -209,7 +209,7 @@ export class WorkPackagesListComponent extends WorkPackagesViewBase implements O
   }
 
   protected set loadingIndicator(promise:Promise<unknown>) {
-    this.loadingIndicatorService.table.promise = promise;
+    // this.loadingIndicatorService.table.promise = promise;
   }
 
   protected loadCurrentQuery():Promise<unknown> {

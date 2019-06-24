@@ -96,7 +96,11 @@ export class WorkPackagesTableController implements OnInit, OnDestroy {
 
   public text:any;
 
+  public rows:any;
+
   public rowcount:number;
+
+  public total:number;
 
   public groupBy:QueryGroupByResource | null;
 
@@ -159,6 +163,8 @@ export class WorkPackagesTableController implements OnInit, OnDestroy {
     ).subscribe(([results, groupBy, columns, timelines, sort]) => {
       this.query = this.querySpace.query.value!;
       this.rowcount = results.count;
+      this.total = results.total;
+      this.rows = results.elements;
 
       this.groupBy = groupBy;
       this.columns = columns;
@@ -192,12 +198,12 @@ export class WorkPackagesTableController implements OnInit, OnDestroy {
   }
 
   public registerTimeline(controller:WorkPackageTimelineTableController, body:HTMLElement) {
-    const tbody = this.$element.find('.work-package--results-tbody');
-    this.workPackageTable = new WorkPackageTable(this.injector, this.$element[0], tbody[0], body, controller, this.configuration);
-    this.tbody = tbody;
-    controller.workPackageTable = this.workPackageTable;
-    new TableHandlerRegistry(this.injector).attachTo(this.workPackageTable);
-    this.cdRef.detectChanges();
+    // const tbody = this.$element.find('.work-package--results-tbody');
+    // this.workPackageTable = new WorkPackageTable(this.injector, this.$element[0], tbody[0], body, controller, this.configuration);
+    // this.tbody = tbody;
+    // controller.workPackageTable = this.workPackageTable;
+    // new TableHandlerRegistry(this.injector).attachTo(this.workPackageTable);
+    // this.cdRef.detectChanges();
   }
 
   public openTableConfigurationModal() {
